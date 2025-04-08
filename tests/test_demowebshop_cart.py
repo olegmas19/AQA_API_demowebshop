@@ -1,93 +1,87 @@
-import requests
-import json
-from allure_commons.types import AttachmentType
 from selene import browser, have
-import logging
-import allure
 from allure_commons._allure import step
+from AQA_API_demowebshop.demowebshop_api import DemoWebShopApi
+from tests.conftest import BASE_URL
 
-
-BASE_URL = "https://demowebshop.tricentis.com"
 LOGIN = "dude@mail.ru"
 PASSWORD = "qwe123"
 
 
-def api_request(endpoint, method, data=None, params=None, allow_redirects=None):
-    with step("API Request"):
-
-        result = requests.request(
-            method,
-            url=BASE_URL + endpoint,
-            data=data,
-            params=params,
-            allow_redirects=allow_redirects,
-        )
-        allure.attach(
-            body=json.dumps(result.text, indent=4, ensure_ascii=True),
-            name="Response",
-            attachment_type=AttachmentType.JSON,
-            extension="json",
-        )
-        allure.attach(
-            body=str(result.cookies),
-            name="Cookies",
-            attachment_type=AttachmentType.TEXT,
-            extension="text",
-        )
-        allure.attach(
-            body=f"URL: {result.request.url}\nMethod: {result.request.method}\nBody: {result.request.body}",
-            name="Request Details",
-            attachment_type=AttachmentType.TEXT,
-            extension="txt",
-        )
-        logging.info(result.request.url)
-        logging.info(result.status_code)
-        logging.info(result.text)
-    return result
-
-
 def test_adding_goods_to_the_cart():
-
-    with step("Авторизация через API"):
-        url = "/login"
-
-        resultLogin = api_request(
-            url,
-            method="POST",
-            data={"Email": LOGIN, "Password": PASSWORD, "RememberMe": False},
-            allow_redirects=False,
-        )
-
-        # resultLogin = requests.post(
-        #                        url=BASE_URL + url,
-        #                        data={"Email": LOGIN, "Password": PASSWORD, "RememberMe": False},
-        #                        allow_redirects=False)
-        # allure.attach(body=json.dumps(resultLogin.text, indent=4, ensure_ascii=True), name="Response",
-        #               attachment_type=AttachmentType.JSON, extension="json")
-        # allure.attach(body=str(resultLogin.cookies), name="Cookies", attachment_type=AttachmentType.TEXT, extension="text")
-        # allure.attach(
-        #     body=f"URL: {resultLogin.request.url}\nMethod: {resultLogin.request.method}\nBody: {resultLogin.request.body}",
-        #     name="Request Details",
-        #     attachment_type=AttachmentType.TEXT,
-        #     extension="txt"
-        # )
-
-    with step("Получение куки через API"):
-        cookie = resultLogin.cookies.get("Nop.customer")
-        print(cookie)
+    url = "/addproducttocart/catalog/31/1/1"
+    url2 = "/cart"
 
     with step("Добавление товара в корзину через API"):
-        requests.post(
-            url=BASE_URL + "/addproducttocart/catalog/31/1/1",
+        result = DemoWebShopApi.api_request(url, method="POST")
+
+    with step("Получение куки через API"):
+        cookie = result.cookies.get("Nop.customer")
+
+    with step("Переход в корзину с помощью куки полученных через API"):
+        browser.open(BASE_URL)
+        browser.driver.add_cookie({"name": "Nop.customer", "value": cookie})
+        browser.open(BASE_URL + url2)
+
+    with step("Проверка добавленного товара в корзине через WEB"):
+        browser.element(".product-name").should(have.text("14.1-inch Laptop"))
+        browser.element(".product-price.order-total").should(have.text("1590.00"))
+
+
+def test_increase_quantity_goods_to_the_cart():
+    url = "/addproducttocart/catalog/31/1/1"
+    url2 = "/cart"
+
+    with step("Добавление товара в корзину через API"):
+        result = DemoWebShopApi.api_request(url, method="POST")
+
+    with step("Получение куки через API"):
+        cookie = result.cookies.get("Nop.customer")
+
+    with step("Увеличение количества товара в корзине через API"):
+        DemoWebShopApi.api_request(url, method="POST", cookies={"Nop.customer": cookie})
+
+    with step("Переход в корзину с помощью куки полученных через API"):
+        browser.open(BASE_URL)
+        browser.driver.add_cookie({"name": "Nop.customer", "value": cookie})
+        browser.open(BASE_URL + url2)
+
+    with step("Проверка общего количества добавленного товара в корзине через WEB"):
+        browser.element(".product-name").should(have.text("14.1-inch Laptop"))
+        browser.element(".product-price.order-total").should(have.text("3180.00"))
+
+
+def test_adding_several_goods_to_the_cart():
+    url = "/addproducttocart/catalog/31/1/1"
+    url2 = "/cart"
+    url3 = "/addproducttocart/details/72/1"
+
+    with step("Добавление товара в корзину через API"):
+        result = DemoWebShopApi.api_request(url, method="POST")
+
+    with step("Получение куки через API"):
+        cookie = result.cookies.get("Nop.customer")
+
+    with step("Добавление другого товара в корзину через API"):
+        DemoWebShopApi.api_request(
+            url3,
+            method="POST",
+            data={
+                "product_attribute_72_5_18": 3,
+                "product_attribute_72_6_19": 54,
+                "product_attribute_72_3_20": 57,
+                "addtocart_72.EnteredQuantity": 1,
+            },
             cookies={"Nop.customer": cookie},
-            allow_redirects=False,
         )
 
     with step("Переход в корзину с помощью куки полученных через API"):
         browser.open(BASE_URL)
         browser.driver.add_cookie({"name": "Nop.customer", "value": cookie})
-        browser.open(BASE_URL + "/cart")
+        browser.open(BASE_URL + url2)
 
-    with step("Проверка добавленного товара в корзине через WEB"):
+    with step("Проверка добавленных товаров в корзине через WEB"):
         browser.element(".product-name").should(have.text("14.1-inch Laptop"))
-        browser.element(".product-price.order-total").should(have.text("1590.00"))
+        browser.all(".attributes").should(
+            have.texts("Processor: 2X\nRAM: 2 GB\nHDD: 320 GB")
+        )
+        browser.element(".product-price.order-total").should(have.text("2390.00"))
