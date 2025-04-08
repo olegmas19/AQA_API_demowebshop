@@ -4,15 +4,17 @@ from allure_commons.types import AttachmentType
 import logging
 import allure
 from allure_commons._allure import step
+
 from tests.conftest import BASE_URL
 
 
 class DemoWebShopApi:
+
+    @staticmethod
     def api_request(
         endpoint, method, data=None, params=None, allow_redirects=None, cookies=None
     ):
         with step("API Request"):
-
             result = requests.request(
                 method,
                 url=BASE_URL + endpoint,
@@ -33,13 +35,24 @@ class DemoWebShopApi:
                 attachment_type=AttachmentType.TEXT,
                 extension="text",
             )
-            allure.attach(
-                body=json.dumps(result.text, indent=4, ensure_ascii=True),
-                name="Response",
-                attachment_type=AttachmentType.JSON,
-                extension="json",
-            )
+            try:
+                response_json = result.json()
+                allure.attach(
+                    body=json.dumps(response_json, indent=4, ensure_ascii=False),
+                    name="Response",
+                    attachment_type=AttachmentType.JSON,
+                    extension="json",
+                )
+            except ValueError:
+                allure.attach(
+                    body=result.text,
+                    name="Response",
+                    attachment_type=AttachmentType.TEXT,
+                    extension="txt",
+                )
             logging.info(result.request.url)
             logging.info(result.status_code)
-            logging.info(result.text)
+            logging.info(
+                f'{json.dumps(json.loads(result.text), indent=4, ensure_ascii=False) if result.text else "None"}'
+            )
         return result

@@ -1,6 +1,6 @@
 from selene import browser, have
 from allure_commons._allure import step
-from AQA_API_demowebshop.demowebshop_api import DemoWebShopApi
+from aqa_api_demowebshop.demowebshop_api import DemoWebShopApi
 from tests.conftest import BASE_URL
 
 LOGIN = "dude@mail.ru"
